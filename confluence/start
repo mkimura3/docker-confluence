@@ -1,0 +1,77 @@
+#!/bin/bash -e
+
+# Database variables
+DB_TYPE=${DB_TYPE:-}
+DB_HOST=${DB_HOST:-}
+DB_PORT=${DB_PORT:-}
+DB_NAME=${DB_NAME:-}
+DB_USER=${DB_USER:-}
+DB_PASS=${DB_PASS:-}
+#DB_POOL=${DB_POOL:-20}
+
+# Check if a mysql container has been linked
+if [ -n "${MYSQL_PORT_3306_TCP_ADDR}" ]; then
+    DB_TYPE=${DB_TYPE:-mysql}
+    DB_HOST=${DB_HOST:-${MYSQL_PORT_3306_TCP_ADDR}}
+    DB_PORT=${DB_PORT:-${MYSQL_PORT_3306_TCP_PORT}}
+    DB_USER=${DB_USER:-${MYSQL_ENV_DB_USER}}
+    DB_PASS=${DB_PASS:-${MYSQL_ENV_DB_PASS}}
+    DB_NAME=${DB_NAME:-${MYSQL_ENV_DB_NAME}}
+fi
+
+# Check DB_TYPE
+case "${DB_TYPE}" in 
+    mysql)
+        DB_PORT=${DB_PORT:-3306}
+        HIBERNATE_DRIVER_CLASS="com.mysql.jdbc.Driver"
+        HIBERNATE_URL="jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?autoReconnect=true"
+        HIBERNATE_DIALECT="com.atlassian.hibernate.dialect.MySQLDialect"
+        ;;
+    *)
+        HIBERNATE_DRIVER_CLASS="org.h2.Driver"
+        DB_USER="sa"
+        DB_PASS="password"
+        HIBERNATE_URL="localhost"
+        HIBERNATE_DIALECT="net.sf.hibernate.dialect.H2Dialect"
+        ${CONF_INSTALL_DIR}/bin/start-confluence.sh -fg
+        exit 0
+        ;;
+esac
+
+# Configure Database
+CONF_CONFIG_FILE="${CONF_HOME_DIR}/confluence.cfg.xml"
+XML_PATH="confluence-configuration/properties"
+
+# backup
+cp ${CONF_CONFIG_FILE} ${CONF_CONFIG_FILE}.bak
+
+# update configfile
+xmlstarlet ed --inplace \
+  --delete "${XML_PATH}/property[@name='hibernate.connection.driver_class']" \
+  --subnode "${XML_PATH}"  --type elem -n property -v ${HIBERNATE_DRIVER_CLASS} \
+  --insert  "${XML_PATH}/property[last()]" --type attr -n name -v hibernate.connection.driver_class ${CONF_CONFIG_FILE}
+
+xmlstarlet ed --inplace \
+  --delete "${XML_PATH}/property[@name='hibernate.connection.url']" \
+  --subnode "${XML_PATH}"  --type elem -n property -v ${HIBERNATE_URL} \
+  --insert  "${XML_PATH}/property[last()]" --type attr -n name -v hibernate.connection.url ${CONF_CONFIG_FILE}
+
+xmlstarlet ed --inplace \
+  --delete "${XML_PATH}/property[@name='hibernate.connection.username']" \
+  --subnode "${XML_PATH}"  --type elem -n property -v ${DB_USER} \
+  --insert  "${XML_PATH}/property[last()]" --type attr -n name -v hibernate.connection.username ${CONF_CONFIG_FILE}
+
+xmlstarlet ed --inplace \
+  --delete "${XML_PATH}/property[@name='hibernate.connection.password']" \
+  --subnode "${XML_PATH}"  --type elem -n property -v ${DB_PASS} \
+  --insert  "${XML_PATH}/property[last()]" --type attr -n name -v hibernate.connection.password ${CONF_CONFIG_FILE}
+
+xmlstarlet ed --inplace \
+  --delete "${XML_PATH}/property[@name='hibernate.dialect']" \
+  --subnode "${XML_PATH}"  --type elem -n property -v ${HIBERNATE_DIALECT} \
+  --insert  "${XML_PATH}/property[last()]" --type attr -n name -v hibernate.dialect ${CONF_CONFIG_FILE}
+
+
+# start server
+${CONF_INSTALL_DIR}/bin/start-confluence.sh -fg
+

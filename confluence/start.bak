@@ -1,0 +1,56 @@
+#!/bin/bash -e
+
+# Database variables
+DB_TYPE=${DB_TYPE:-}
+DB_HOST=${DB_HOST:-}
+DB_PORT=${DB_PORT:-}
+DB_NAME=${DB_NAME:-}
+DB_USER=${DB_USER:-}
+DB_PASS=${DB_PASS:-}
+#DB_POOL=${DB_POOL:-20}
+
+# Check if a mysql container has been linked
+if [ -n "${MYSQL_PORT_3306_TCP_ADDR}" ]; then
+    DB_TYPE=${DB_TYPE:-mysql}
+    DB_HOST=${DB_HOST:-${MYSQL_PORT_3306_TCP_ADDR}}
+    DB_PORT=${DB_PORT:-${MYSQL_PORT_3306_TCP_PORT}}
+    DB_USER=${DB_USER:-${MYSQL_ENV_DB_USER}}
+    DB_PASS=${DB_PASS:-${MYSQL_ENV_DB_PASS}}
+    DB_NAME=${DB_NAME:-${MYSQL_ENV_DB_NAME}}
+fi
+
+# Check DB_TYPE
+case "${DB_TYPE}" in 
+    mysql)
+        DB_PORT=${DB_PORT:-3306}
+        HIBERNATE_DRIVER_CLASS="com.mysql.jdbc.Driver"
+        HIBERNATE_URL="jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?autoReconnect=true"
+        HIBERNATE_DIALECT="com.atlassian.hibernate.dialect.MySQLDialect"
+        ;;
+    *)
+        HIBERNATE_DRIVER_CLASS="org.h2.Driver"
+        DB_USER="sa"
+        DB_PASS=""
+        HIBERNATE_URL="localhost"
+        HIBERNATE_DIALECT="net.sf.hibernate.dialect.H2Dialect"
+        ;;
+esac
+
+# Configure Database
+CONF_CONFIG_FILE="${CONF_HOME_DIR}/confluence.cfg.xml"
+XML_PATH="confluence-configuration/properties/property"
+
+# backup
+cp ${CONF_CONFIG_FILE} ${CONF_CONFIG_FILE}.bak
+# update configfile
+
+
+xmlstarlet ed --inplace --update "${XML_PATH}[@name='hibernate.connection.driver_class']" -v ${HIBERNATE_DRIVER_CLASS} ${CONF_CONFIG_FILE}
+xmlstarlet ed --inplace --update "${XML_PATH}[@name='hibernate.connection.url']" -v ${HIBERNATE_URL} ${CONF_CONFIG_FILE}
+xmlstarlet ed --inplace --update "${XML_PATH}[@name='hibernate.connection.username']" -v ${DB_USER} ${CONF_CONFIG_FILE}
+xmlstarlet ed --inplace --update "${XML_PATH}[@name='hibernate.connection.password']" -v ${DB_PASS} ${CONF_CONFIG_FILE}
+xmlstarlet ed --inplace --update "${XML_PATH}[@name='hibernate.dialect']" -v ${HIBERNATE_DIALECT} ${CONF_CONFIG_FILE}
+
+# start server
+${CONF_INSTALL_DIR}/bin/start-confluence.sh -fg
+
