@@ -1,5 +1,7 @@
 #!/bin/bash -e
 
+CONF_CONFIG_FILE="${CONF_HOME_DIR}/confluence.cfg.xml"
+
 # Database variables
 DB_TYPE=${DB_TYPE:-}
 DB_HOST=${DB_HOST:-}
@@ -23,37 +25,43 @@ fi
 case "${DB_TYPE}" in 
     mysql)
         DB_PORT=${DB_PORT:-3306}
-        HIBERNATE_DRIVER_CLASS="com.mysql.jdbc.Driver"
-        HIBERNATE_URL="jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?autoReconnect=true"
-        HIBERNATE_DIALECT="com.atlassian.hibernate.dialect.MySQLDialect"
+        echo "DB_TYPE=${DB_TYPE}"
+        echo "DB_HOST=${DB_HOST}"
+        echo "DB_PORT=${DB_PORT}"
+        echo "DB_NAME=${DB_NAME}"
+        echo "DB_USER=${DB_USER}"
+        echo "DB_PASS=${DB_PASS}"
         ;;
     *)
-        HIBERNATE_DRIVER_CLASS="org.h2.Driver"
-        DB_USER="sa"
-        DB_PASS="password"
-        HIBERNATE_URL="localhost"
-        HIBERNATE_DIALECT="net.sf.hibernate.dialect.H2Dialect"
-        ${CONF_INSTALL_DIR}/bin/start-confluence.sh -fg
-        exit 0
+        echo "Currently only MySQL is supported as database type."
+        exit 1
         ;;
 esac
 
-# Configure Database
-CONF_CONFIG_FILE="${CONF_HOME_DIR}/confluence.cfg.xml"
+#
+if [ ! -f $CONF_CONFIG_FILE ]; then
+    # Initial Setup Confluence
+    chown -R 1000:1000 ${CONF_HOME_DIR} 
+    ${CONF_INSTALL_DIR}/bin/start-confluence.sh -fg
+    exit 0
+fi
+
+# Configuring a MySQL Datasource in Apache Tomcat
 XML_PATH="confluence-configuration/properties"
 
+# Update Config file
 # backup
 cp ${CONF_CONFIG_FILE} ${CONF_CONFIG_FILE}.bak
 
 # update configfile
 xmlstarlet ed --inplace \
   --delete "${XML_PATH}/property[@name='hibernate.connection.driver_class']" \
-  --subnode "${XML_PATH}"  --type elem -n property -v ${HIBERNATE_DRIVER_CLASS} \
+  --subnode "${XML_PATH}"  --type elem -n property -v "com.mysql.jdbc.Driver" \
   --insert  "${XML_PATH}/property[last()]" --type attr -n name -v hibernate.connection.driver_class ${CONF_CONFIG_FILE}
 
 xmlstarlet ed --inplace \
   --delete "${XML_PATH}/property[@name='hibernate.connection.url']" \
-  --subnode "${XML_PATH}"  --type elem -n property -v ${HIBERNATE_URL} \
+  --subnode "${XML_PATH}"  --type elem -n property -v "jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?sessionVariables=storage_engine%3DInnoDB&amp;useUnicode=true&amp;characterEncoding=utf8" \
   --insert  "${XML_PATH}/property[last()]" --type attr -n name -v hibernate.connection.url ${CONF_CONFIG_FILE}
 
 xmlstarlet ed --inplace \
@@ -67,10 +75,14 @@ xmlstarlet ed --inplace \
   --insert  "${XML_PATH}/property[last()]" --type attr -n name -v hibernate.connection.password ${CONF_CONFIG_FILE}
 
 xmlstarlet ed --inplace \
-  --delete "${XML_PATH}/property[@name='hibernate.dialect']" \
-  --subnode "${XML_PATH}"  --type elem -n property -v ${HIBERNATE_DIALECT} \
-  --insert  "${XML_PATH}/property[last()]" --type attr -n name -v hibernate.dialect ${CONF_CONFIG_FILE}
+  --delete "${XML_PATH}/property[@name='hibernate.setup']" \
+  --subnode "${XML_PATH}"  --type elem -n property -v true \
+  --insert  "${XML_PATH}/property[last()]" --type attr -n name -v hibernate.setup ${CONF_CONFIG_FILE}
 
+xmlstarlet ed --inplace \
+  --delete "${XML_PATH}/property[@name='hibernate.dialect']" \
+  --subnode "${XML_PATH}"  --type elem -n property -v "com.atlassian.hibernate.dialect.MySQLDialect" \
+  --insert  "${XML_PATH}/property[last()]" --type attr -n name -v hibernate.dialect ${CONF_CONFIG_FILE}
 
 # start server
 ${CONF_INSTALL_DIR}/bin/start-confluence.sh -fg
