@@ -5,16 +5,17 @@ mysql4confluence:
     - DB_PASS=password
     - DB_NAME=confluence
   volumes:
-    - /data/docker/confluence/mysql:/var/lib/mysql
+    - /data/confluence/mysql:/var/lib/mysql
 confluence:
   build: confluence/
   links:
     - mysql4confluence:mysql
   environment:
     - DB_TYPE=mysql
+    - JAVA_MEMORY_OPTS=-Xms1536m -Xmx1536m -XX:+UseG1GC
   ports:
-    - "8090:8090"
+    - "80:8090"
   volumes:
-    - /data/docker/confluence/confluence:/var/atlassian/application-data/confluence
-    - /data/docker/confluence/backup:/var/atlassian/application-data/confluence/backups
+    - /data/confluence/confluence:/var/atlassian/application-data/confluence
+    - /backup/confluence/backup:/var/atlassian/application-data/confluence/backups
 

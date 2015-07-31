@@ -22,9 +22,6 @@ RUN chmod +x /confluence.bin
 ADD response.varfile /
 RUN /confluence.bin -q -varfile /response.varfile
 RUN rm -f /confluence.bin
-ADD start /
-RUN chmod +x /start
-#RUN chown -R 1000:1000 ${CONF_INSTALL_DIR}/conf
 
 ### MySQL JDBC Driver
 ENV MYSQL_CONNECTOR_J_VERSION 5.1.36
@@ -34,6 +31,19 @@ RUN curl -L --silent http://dev.mysql.com/get/Downloads/Connector-J/mysql-connec
 
 ### Change TZ
 RUN ln -sf /usr/share/zoneinfo/Japan /etc/localtime
+RUN dpkg-reconfigure --frontend noninteractive tzdata
+
+### add Japanese Font
+RUN apt-get install -y unzip
+RUN cd /tmp && wget --quiet  http://ipafont.ipa.go.jp/ipafont/IPAfont00303.php && \
+    unzip IPAfont00303.php && \
+    mkdir /opt/atlassian/confluence/jre/lib/fonts/fallback && \
+    cp IPAfont00303/*.ttf /opt/atlassian/confluence/jre/lib/fonts/fallback/ && \
+    mkdir /usr/share/fonts/ && \
+    cp IPAfont00303/*.ttf /usr/share/fonts/
+
+ADD start /
+RUN chmod +x /start
 
 EXPOSE 8090
 VOLUME $CONF_HOME_DIR

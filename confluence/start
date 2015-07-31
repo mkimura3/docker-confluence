@@ -84,6 +84,13 @@ xmlstarlet ed --inplace \
   --subnode "${XML_PATH}"  --type elem -n property -v "com.atlassian.hibernate.dialect.MySQLDialect" \
   --insert  "${XML_PATH}/property[last()]" --type attr -n name -v hibernate.dialect ${CONF_CONFIG_FILE}
 
+
+
+# SET JAVA OPTION
+JAVA_MEMORY_OPTS=${JAVA_MEMORY_OPTS:-"-Xms1024m -Xmx1024m -XX:+UseG1GC"}
+#sed -i.bak -e "s/^export CATALINA_OPTS/CATALINA_OPTS='\${CATALINA_OPTS} \${DOCKER_JAVA_OPTS}'; echo \$CATALINA_OPTS ; export CATALINA_OPTS/" ${CONF_INSTALL_DIR}/bin/setenv.sh
+sed -i.bak -e "s/-Xms1024m -Xmx1024m -XX:+UseG1GC/${JAVA_MEMORY_OPTS}/" ${CONF_INSTALL_DIR}/bin/setenv.sh
+
 # start server
 ${CONF_INSTALL_DIR}/bin/start-confluence.sh -fg
 
