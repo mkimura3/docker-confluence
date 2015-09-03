@@ -1,0 +1,32 @@
+#!/bin/bash -e
+
+# S3 Setting
+S3_BUCKET=your-s3-bucket
+S3_PATH=confluence
+KMS_KEY_ID=aaaaaaaa-bbbbbbbb-cccccccc-ddddddd
+AWS_PROFILE=default
+# Backup Setting
+BACKUP_PATH=/backup/confluence/backup/
+BACKUP_EXPIRY=0
+#
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH
+export AWS_CONFIG_FILE=/home/ubuntu/.aws/config
+
+function putS3() {
+  aws s3api put-object \
+    --profile $AWS_PROFILE \
+    --server-side-encryption aws:kms \
+    --ssekms-key-id $KMS_KEY_ID \
+    --bucket $S3_BUCKET \
+    --key $S3_PATH/$1 \
+    --body $BACKUP_PATH/$1
+}
+
+# Conflunece File Backup
+cd $BACKUP_PATH
+FILENAME=`ls -t backup-*.zip | head -1`
+putS3 $FILENAME
+
+# BackupFile Retention
+find $BACKUP_PATH -type f -mtime +$BACKUP_EXPIRY -exec rm -f {} \;
+
